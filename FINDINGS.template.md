@@ -70,7 +70,7 @@ Group by Backend / Frontend / Cross-cutting.
   commit → call gateway → reacquire lock → record result.
 
 
-### Issue: Webhook duplicate processing (B3)
+### Issue: Webhook duplicate processing (B3) 
 
 - Where: `src/services/ordersService.js` → `processPaymentWebhook`;
   `src/repositories/paymentsRepository.js`; `src/db/schema.sql`
