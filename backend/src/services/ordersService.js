@@ -20,6 +20,10 @@ async function withTransaction(callback) {
   }
 }
 
+// FIXED: entire createOrder runs inside a single serialisable transaction.
+// FOR UPDATE on each product row serialises concurrent requests at the DB level:
+// the second concurrent call blocks at getProductByIdForUpdate until the first
+// commits, then reads the already-decremented stock and throws 409.
 async function createOrder({ customerId, items, totalAmount }) {
   if (!customerId || !Array.isArray(items) || items.length === 0) {
     const error = new Error("customerId and items are required");
@@ -27,41 +31,61 @@ async function createOrder({ customerId, items, totalAmount }) {
     throw error;
   }
 
-  const enrichedItems = [];
-  for (const item of items) {
-    const product = await productsRepository.getProductById(item.productId);
-    if (!product) {
-      const error = new Error(`Product ${item.productId} not found`);
-      error.status = 404;
-      throw error;
-    }
-    if (product.stock < item.quantity) {
-      const error = new Error(`Insufficient stock for ${product.name}`);
-      error.status = 409;
-      throw error;
-    }
-    enrichedItems.push({
-      productId: product.id,
-      quantity: item.quantity,
-      unitPrice: Number(product.price),
-    });
-  }
+  return withTransaction(async (client) => {
+    const enrichedItems = [];
 
-  for (const item of enrichedItems) {
-    await productsRepository.decrementStock(
-      item.productId,
-      item.quantity,
-      db,
+    for (const item of items) {
+      // Locking read — blocks any other transaction trying to lock this row.
+      const product = await productsRepository.getProductByIdForUpdate(
+        item.productId,
+        client,         // <-- same transactional client throughout
+      );
+
+      if (!product) {
+        const error = new Error(`Product ${item.productId} not found`);
+        error.status = 404;
+        throw error;
+      }
+
+      if (product.stock < item.quantity) {
+        const error = new Error(`Insufficient stock for ${product.name}`);
+        error.status = 409;
+        throw error;
+      }
+
+      enrichedItems.push({
+        productId: product.id,
+        quantity: item.quantity,
+        unitPrice: Number(product.price),
+      });
+    }
+
+    for (const item of enrichedItems) {
+      const updated = await productsRepository.decrementStock(
+        item.productId,
+        item.quantity,
+        client,         // <-- transactional client, not the pool
+      );
+
+      // Second-line defence: decrementStock returns null if stock was already
+      // insufficient at the moment of the UPDATE (race escaped the FOR UPDATE).
+      if (!updated) {
+        const error = new Error(
+          `Insufficient stock for product ${item.productId} (concurrent update)`,
+        );
+        error.status = 409;
+        throw error;
+      }
+    }
+
+    // createOrder already accepts a client as second arg — pass it through.
+    const order = await ordersRepository.createOrder(
+      { customerId, totalAmount: Number(totalAmount), items: enrichedItems },
+      client,
     );
-  }
 
-  const order = await ordersRepository.createOrder({
-    customerId,
-    totalAmount: Number(totalAmount),
-    items: enrichedItems,
+    return order;
   });
-
-  return order;
 }
 
 async function chargeOrder({ orderId, idempotencyKey }) {

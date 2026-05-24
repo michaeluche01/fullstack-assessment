@@ -1,8 +1,11 @@
 const { Pool } = require("pg");
-const { DATABASE_URL } = require("../config/env");
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  host: "localhost",
+  port: 5432,
+  user: "postgres",
+  password: "postgres",
+  database: "assessment_db",
   max: 10,
 });
 
