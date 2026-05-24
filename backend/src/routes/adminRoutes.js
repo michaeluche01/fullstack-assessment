@@ -1,7 +1,13 @@
 const express = require("express");
 const productsRepository = require("../repositories/productsRepository");
+const requireAdmin = require("../middleware/requireAdmin");
 
 const router = express.Router();
+
+// requireAdmin applied to ALL routes in this file via router.use.
+// Any new route added to this file is automatically protected —
+// safer than applying per-route where a developer might forget.
+router.use(requireAdmin);
 
 router.post("/products", async (req, res, next) => {
   try {

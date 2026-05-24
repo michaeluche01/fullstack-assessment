@@ -68,7 +68,7 @@ Group by Backend / Frontend / Cross-cutting.
   connection open for up to 600ms. At scale this depletes the connection pool.
   Production fix would introduce a PROCESSING status: lock → set PROCESSING →
   commit → call gateway → reacquire lock → record result.
-  
+
 
   ### Issue: Webhook duplicate processing (B3)
 
@@ -92,6 +92,28 @@ Group by Backend / Frontend / Cross-cutting.
 - Trade-offs: Webhook endpoint still has no secret/signature verification —
   WEBHOOK_SECRET is defined in env but unused. Any caller can trigger order
   status changes. Noted as B9, out of scope for this fix.
+
+
+  ### Issue: Admin routes completely unauthenticated (B4)
+
+- Where: `src/routes/adminRoutes.js`; `src/config/env.js`
+- Why: Both admin routes (POST /admin/products, PATCH /admin/products/:id) had
+  no auth middleware. ADMIN_TOKEN was defined in env and read by env.js but
+  never referenced in any route or middleware. Any unauthenticated caller could
+  create or modify products.
+- Impact: Full unauthenticated write access to product catalogue. Attacker can
+  set any product price to zero, set stock to arbitrary values, or inject
+  malicious HTML into product descriptions (compounding F1/XSS).
+- Fix: Created src/middleware/requireAdmin.js which extracts the Bearer token
+  from the Authorization header and compares it to ADMIN_TOKEN from env.
+  Applied via router.use(requireAdmin) at the top of adminRoutes.js so all
+  current and future routes in that file are automatically protected.
+- Trade-offs: Token comparison uses === not crypto.timingSafeEqual — vulnerable
+  to timing attacks in theory. Production would use timingSafeEqual. ADMIN_TOKEN
+  defaults to "change-me" if env var is unset — any request with that value
+  would succeed, so the env var must be set in production. Frontend still reads
+  token from localStorage (F10) which is XSS-accessible — addressed in frontend
+  fixes.
 
 ## Frontend
 

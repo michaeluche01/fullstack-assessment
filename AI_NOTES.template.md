@@ -10,14 +10,6 @@ List the AI tools / models / IDEs you used during the assessment.
 
 ## 2. Prompt journal
 
-Paste 3 to 5 of the most useful prompts you wrote during this assessment.
-
-For each prompt include:
-
-- The verbatim prompt
-- A brief note on what the model produced
-- What you kept, what you rejected, and why
-
 ### Prompt 1
 "Show me the current broken code in ordersService.js side by side with your 
 proposed fix for the stock oversell race condition. Explain exactly why the fix 
@@ -84,11 +76,11 @@ How did you verify AI-generated code?
 
 ## 5. What you did NOT delegate
 
-Decisions you made yourself rather than asking the model. Especially around:
-
-- Money handling
-- Authentication / authorization
-- Concurrency and locking
-- Rendering untrusted input
+- **Auth middleware placement**: decided personally to use router.use() rather
+  than per-route middleware. AI suggested per-route; I overrode this because
+  router.use() protects all future routes automatically — per-route is fragile
+  if a developer forgets the argument on a new route.
+- **Token comparison**: noted personally that === is timing-attack vulnerable
+  and documented it in FINDINGS.md. AI did not flag this unprompted.
 
 Briefly explain why you did not trust AI for these.
