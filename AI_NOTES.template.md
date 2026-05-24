@@ -56,14 +56,6 @@ What was wrong with it. How you found out. What you replaced it with.
 
 ## 4. Validation strategy
 
-How did you verify AI-generated code?
-
-- Tests written
-- Manual reasoning / code review
-- Documentation you cross-referenced
-- Local runs / curl / manual UI testing
-- Anything else
-
 - Ran `npm test` after each backend fix to confirm behaviour before and after
 - Verified B1 fix with a concurrent `Promise.all` test sending 5 simultaneous 
   order requests against stock of 1 — confirmed exactly 1 success and 4 × 409
@@ -73,6 +65,7 @@ How did you verify AI-generated code?
   dotenv@17 is actually dotenvx and intercepts require("dotenv").config() — 
   worked around by hardcoding connection parameters in postgres.js for the 
   assessment environment.
+- SQL injection fix validated with three attack payloads in the test    suite: OR 1=1 data leak, DROP TABLE, and a clean legitimate search to confirm functionality was preserved.
 
 ## 5. What you did NOT delegate
 

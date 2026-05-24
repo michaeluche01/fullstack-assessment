@@ -2,14 +2,18 @@ const pool = require("../db/postgres");
 
 async function listProducts({ q } = {}, client = pool) {
   if (q) {
+    // Parameterized query — user input is passed as a bound parameter,
+    // never interpolated into the SQL string.
+    // The % wildcards are part of the parameter value, not the query structure,
+    // so they cannot break out of the string context.
     const query = `
       SELECT id, sku, name, description, price, stock,
              created_at AS "createdAt", updated_at AS "updatedAt"
       FROM products
-      WHERE name ILIKE '%${q}%' OR sku ILIKE '%${q}%'
+      WHERE name ILIKE $1 OR sku ILIKE $1
       ORDER BY id ASC
     `;
-    const { rows } = await client.query(query);
+    const { rows } = await client.query(query, [`%${q}%`]);
     return rows;
   }
 

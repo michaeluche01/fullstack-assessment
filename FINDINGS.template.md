@@ -70,7 +70,7 @@ Group by Backend / Frontend / Cross-cutting.
   commit → call gateway → reacquire lock → record result.
 
 
-  ### Issue: Webhook duplicate processing (B3)
+### Issue: Webhook duplicate processing (B3)
 
 - Where: `src/services/ordersService.js` → `processPaymentWebhook`;
   `src/repositories/paymentsRepository.js`; `src/db/schema.sql`
@@ -94,7 +94,7 @@ Group by Backend / Frontend / Cross-cutting.
   status changes. Noted as B9, out of scope for this fix.
 
 
-  ### Issue: Admin routes completely unauthenticated (B4)
+### Issue: Admin routes completely unauthenticated (B4)
 
 - Where: `src/routes/adminRoutes.js`; `src/config/env.js`
 - Why: Both admin routes (POST /admin/products, PATCH /admin/products/:id) had
@@ -114,6 +114,22 @@ Group by Backend / Frontend / Cross-cutting.
   would succeed, so the env var must be set in production. Frontend still reads
   token from localStorage (F10) which is XSS-accessible — addressed in frontend
   fixes.
+
+
+### Issue: SQL injection in listProducts (B5)
+
+- Where: `src/repositories/productsRepository.js` → `listProducts`
+- Why: The search query parameter `q` was interpolated directly into the SQL
+  string using template literals: `WHERE name ILIKE '%${q}%'`. No parameterized
+  query was used. Any value passed via ?q= was executed as raw SQL.
+- Impact: Full SQL injection. An attacker could extract all data, drop tables,
+  or execute arbitrary database commands via the public product search endpoint.
+  No authentication required to exploit.
+- Fix: Replaced string interpolation with a parameterized query using $1. The
+  % wildcards are part of the parameter value, not the SQL string, so they
+  cannot break out of the string context. pg library handles escaping safely.
+- Trade-offs: None — parameterized queries are strictly safer and have no
+  performance downside.
 
 ## Frontend
 
