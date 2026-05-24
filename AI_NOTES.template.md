@@ -29,8 +29,14 @@ withTransaction wrapping, and the test structure. Rejected: initial cleanup path
 in afterAll which had an FK ordering bug — rewrote it manually.
 
 ### Prompt 2
+"Show me the current broken chargeOrder code and propose a fix using SELECT FOR
+UPDATE inside a transaction. Flag anything touching money or transaction logic
+for my manual review."
 
-...
+Produced the withTransaction wrapping, the getOrderByIdForUpdate usage, and the
+idempotency key frontend change. Kept all three changes after line-by-line review.
+Personally verified the TTL reasoning (changed from 1h to 24h) and confirmed the
+gateway-inside-transaction trade-off is acceptable for assessment scope.
 
 ## 3. AI got it wrong
 

@@ -44,6 +44,31 @@ Group by Backend / Frontend / Cross-cutting.
   products in different request order could deadlock; mitigated by processing items
   in ascending `productId` order (noted, not yet implemented).
 
+
+### Issue: Double-charge race condition (B2)
+
+- Where: `src/services/ordersService.js` → `chargeOrder`;
+  `src/api.ts` → `chargeOrder`
+- Why: Three compounding failures. First, order status check and gateway call
+  happened outside any transaction with no row lock — two concurrent requests
+  both read PENDING, both called the gateway, both charged the customer. Second,
+  the Redis idempotency cache was written only after the gateway call succeeded,
+  so concurrent requests with the same key both missed the empty cache and both
+  charged before either could write it. Third, the frontend sent no
+  Idempotency-Key header at all, making the Redis cache path completely dead code
+  from the UI.
+- Impact: Customer charged multiple times for the same order. Payment records
+  duplicated in the database.
+- Fix: Wrapped entire chargeOrder in withTransaction using getOrderByIdForUpdate
+  (SELECT FOR UPDATE) so only one request can hold the lock at a time. Second
+  concurrent request blocks, then reads PAID status and gets 409. Frontend now
+  sends a stable Idempotency-Key of charge-{orderId} on every request. Redis TTL
+  changed from 1 hour to 24 hours to cover realistic support/retry windows.
+- Trade-offs: Gateway call happens while holding the DB row lock, keeping a
+  connection open for up to 600ms. At scale this depletes the connection pool.
+  Production fix would introduce a PROCESSING status: lock → set PROCESSING →
+  commit → call gateway → reacquire lock → record result.
+
 ## Frontend
 
 ### Issue: <title>

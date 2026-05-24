@@ -47,6 +47,12 @@ export function getOrder(id: number | string): Promise<Order> {
 export function chargeOrder(orderId: number): Promise<{ order: Order }> {
   return request<{ order: Order }>(`/payments/charge`, {
     method: "POST",
+    headers: {
+      // Stable per order: retrying the same order sends the same key,
+      // which hits the Redis cache and returns the cached result without
+      // calling the gateway again.
+      "Idempotency-Key": `charge-${orderId}`,
+    },
     body: JSON.stringify({ orderId }),
   });
 }
