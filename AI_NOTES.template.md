@@ -38,6 +38,18 @@ idempotency key frontend change. Kept all three changes after line-by-line revie
 Personally verified the TTL reasoning (changed from 1h to 24h) and confirmed the
 gateway-inside-transaction trade-off is acceptable for assessment scope.
 
+### Prompt 3
+"Propose a fix for webhook deduplication. Show the UNIQUE constraint migration,
+the application-level check, and the concurrent race handling. Flag the DB
+constraint decision for my review."
+
+Produced the two-layer approach: application check plus UNIQUE constraint
+catching the concurrent race via error code 23505. Kept both layers after
+reviewing the PostgreSQL error code documentation to confirm 23505 is the
+correct unique violation code. Wrote the migration as a separate SQL file
+rather than modifying schema.sql directly, which is safer for an existing
+deployment.
+
 ## 3. AI got it wrong
 
 Describe at least one concrete case where AI gave a plausible-looking but

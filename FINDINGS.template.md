@@ -68,6 +68,30 @@ Group by Backend / Frontend / Cross-cutting.
   connection open for up to 600ms. At scale this depletes the connection pool.
   Production fix would introduce a PROCESSING status: lock → set PROCESSING →
   commit → call gateway → reacquire lock → record result.
+  
+
+  ### Issue: Webhook duplicate processing (B3)
+
+- Where: `src/services/ordersService.js` → `processPaymentWebhook`;
+  `src/repositories/paymentsRepository.js`; `src/db/schema.sql`
+- Why: No uniqueness enforcement on `provider_event_id` in the
+  `payment_events` table — the same event could be inserted unlimited times.
+  No application-level check before calling `markOrderAsPaid`, so every
+  duplicate webhook triggered another status update and corrupted accounting
+  records.
+- Impact: Duplicate payment_succeeded webhooks mark an order paid multiple
+  times. Payment event records accumulate without bound. Accounting and
+  audit logs corrupt.
+- Fix: Added UNIQUE constraint on `payment_events.provider_event_id` as DB-
+  level second line of defence. Added `findWebhookEventByProviderId` check
+  inside a transaction before inserting — if the event already exists, returns
+  accepted:true immediately without calling markOrderAsPaid. Concurrent
+  duplicate webhooks that slip past the application check hit the UNIQUE
+  constraint (error code 23505), which is caught and returns an idempotent
+  accepted response.
+- Trade-offs: Webhook endpoint still has no secret/signature verification —
+  WEBHOOK_SECRET is defined in env but unused. Any caller can trigger order
+  status changes. Noted as B9, out of scope for this fix.
 
 ## Frontend
 

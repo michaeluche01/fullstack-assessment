@@ -174,18 +174,43 @@ async function processPaymentWebhook({
   eventType,
   payload,
 }) {
-  await paymentsRepository.createWebhookEvent({
-    providerEventId,
-    orderId,
-    eventType,
-    payload,
+  // Application-level dedup check — runs inside a transaction so the
+  // existence check and the insert are atomic. Two concurrent duplicate
+  // webhooks will both pass this check only if they arrive simultaneously;
+  // the UNIQUE constraint on provider_event_id catches that case and throws,
+  // which we catch below and return accepted:true (idempotent response).
+  return withTransaction(async (client) => {
+    const existing = await paymentsRepository.findWebhookEventByProviderId(
+      providerEventId,
+      client,
+    );
+
+    if (existing) {
+      // Already processed — return idempotent success without
+      // calling markOrderAsPaid again.
+      return { accepted: true, duplicate: true };
+    }
+
+    try {
+      await paymentsRepository.createWebhookEvent(
+        { providerEventId, orderId, eventType, payload },
+        client,
+      );
+    } catch (err) {
+      // UNIQUE constraint violation — concurrent duplicate webhook
+      // lost the race at the DB level. Still idempotent.
+      if (err.code === "23505") {
+        return { accepted: true, duplicate: true };
+      }
+      throw err;
+    }
+
+    if (eventType === "payment_succeeded") {
+      await ordersRepository.markOrderAsPaid(orderId, client);
+    }
+
+    return { accepted: true };
   });
-
-  if (eventType === "payment_succeeded") {
-    await ordersRepository.markOrderAsPaid(orderId);
-  }
-
-  return { accepted: true };
 }
 
 async function getOrderById(orderId) {
