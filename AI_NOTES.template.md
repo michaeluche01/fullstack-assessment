@@ -3,10 +3,12 @@
 > Copy this file to `AI_NOTES.md` and fill it in. Submission is required.
 
 ## 1. Tools used
-
-List the AI tools / models / IDEs you used during the assessment.
-
-- e.g. ChatGPT (GPT-4), Cursor with Claude, GitHub Copilot, Claude Code, etc.
+ChatGPT (GPT-5.3-mini)
+Claude(Sonnet-4.6-Adaptive)
+Cursor IDE 
+GitHub Copilot (inline code suggestions)
+PostgreSQL CLI + Docker (for local database debugging)
+Node.js test runner (Jest) for backend validation
 
 ## 2. Prompt journal
 
@@ -43,16 +45,50 @@ rather than modifying schema.sql directly, which is safer for an existing
 deployment.
 
 ## 3. AI got it wrong
+- Case: Unsafe SQL string concatenation + incorrect trust of client-calculated totals
+  During early iterations, AI suggested implementations that looked correct on the surface but were insecure under real attack conditions.
 
-Describe at least one concrete case where AI gave a plausible-looking but
-incorrect, insecure, or unsafe answer. Quote the offending output and explain
-how you detected it and what you did instead.
+  Offending output (SQL injection risk)
+  const query = "SELECT * FROM products WHERE name ILIKE '%" + q + "%'";
+  const result = await db.query(query);
 
-```
-<paste the incorrect output>
-```
+  and for order totals:
 
-What was wrong with it. How you found out. What you replaced it with.
+  const total = items.reduce((sum, item) => sum + item.price, 0);
+
+  await db.query(
+  `INSERT INTO orders (total_amount) VALUES (${totalAmountFromClient})`
+  );
+### What was wrong
+- SQL Injection vulnerability
+  Direct string concatenation allowed user input (q) to break out of the query context.
+
+  An attacker could inject payloads like:
+
+  ' OR 1=1; DROP TABLE products; --
+- Trusting client-side totals
+  The AI suggested using totalAmountFromClient, which means the server blindly trusts user input.
+  This allows:
+  Underpayment attacks (0.01 for large orders)
+  Data integrity corruption
+  Fraudulent checkout manipulation
+
+### How I detected it
+- I manually tested the query patterns against injection payloads in a controlled test suite.
+- I verified that PostgreSQL would execute injected SQL when string concatenation is used.
+- I cross-checked order total logic against the repository data flow and noticed the server already had authoritative pricing data but wasn’t using it.
+### What I replaced it with
+- Parameterized queries (safe SQL)
+  const result = await db.query(
+  "SELECT * FROM products WHERE name ILIKE $1", [`%${q}%`]
+  );
+- Server-side total calculation (no client trust)
+  const total = enrichedItems
+  .reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+  const safeTotal = Math.round(total * 100) / 100;
+- All pricing is now derived strictly from database values.
+- Client-provided totals are ignored entirely.
 
 ## 4. Validation strategy
 
@@ -80,4 +116,4 @@ What was wrong with it. How you found out. What you replaced it with.
   Confirmed that .toFixed(2) was not used because it returns a string, not a
   number. Verified 49.95 × 2 = 99.90 and 49.95 × 3 = 149.85 exactly.
 
-Briefly explain why you did not trust AI for these.
+

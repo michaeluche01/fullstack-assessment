@@ -15,14 +15,6 @@ Group by Backend / Frontend / Cross-cutting.
 
 ## Backend
 
-<!-- ### Issue: <title>
-
-- Where:
-- Why:
-- Impact:
-- Fix:
-- Trade-offs: -->
-
 ### Issue: Stock oversell race condition (B1)
 
 - Where: `src/services/ordersService.js` → `createOrder`;
