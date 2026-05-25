@@ -150,22 +150,134 @@ Group by Backend / Frontend / Cross-cutting.
   accumulation across many additions could still drift slightly — production fix
   is integer arithmetic (store prices in cents).
 
-## Frontend
+  ## Frontend
 
-### Issue: <title>
+### Issue: Unsafe HTML rendering in product description (F1)
 
-- Where:
-- Why:
-- Impact:
-- Fix:
-- Trade-offs:
+- Where: ProductDetailPage.tsx
+- Why: The product description is rendered directly into the DOM using dangerouslySetInnerHTML without any sanitization. If product.description contains malicious HTML or embedded scripts from the API response, it will be executed by the browser.
+- Impact: This creates a stored Cross-Site Scripting (XSS) vulnerability. An attacker could inject JavaScript into a product description, which could execute for users viewing the product page. This may lead to session theft, token leakage, or unauthorized actions in the customer’s browser.
+- Fix: Sanitize HTML before rendering (DOMPurify)
+- Trade-offs: Sanitization may remove some HTML tags or attributes that are intended for formatting. A sanitization policy may need adjustment depending on what HTML content the application expects to allow.
+
+### Issue: Polling interval memory leak (F2)
+
+- Where: OrderDetailPage.tsx
+- Why: setInterval not cleared on unmount
+- Impact: Memory leaks + duplicate API calls
+- Fix: clearInterval in cleanup
+- Trade-offs: Polling still inefficient
+
+### Issue: Pay button double submission (F3)
+
+- Where: OrderDetailPage.tsx
+- Why: No request lock
+- Impact: Duplicate payment requests
+- Fix: disable button during request
+- Trade-offs: UX slightly reduced responsiveness
+
+### Issue: Checkout double submission (F4)
+
+- Where: CartPage.tsx
+- Why: No in-flight guard
+- Impact: Duplicate orders
+- Fix: loading state lock
+- Trade-offs: UI state complexity
+
+### Issue: Missing error handling in payment flow (F5)
+
+- Where: OrderDetailPage.tsx
+- Why: No try/catch
+- Impact: UI stuck in loading state
+- Fix: try/catch/finally
+- Trade-offs: more state logic
+
+### Issue: Missing error handling in checkout (F6)
+
+- Where: CartPage.tsx
+- Why: unhandled async errors
+- Impact: silent failures
+- Fix: error handling + feedback
+- Trade-offs: UI complexity
+
+### Issue: Missing error handling in buy now (F7)
+
+- Where: ProductDetailPage.tsx
+- Why: no error handling
+- Impact: failed orders invisible to user
+- Fix: try/catch wrapper
+- Trade-offs: state overhead
+
+### Issue: Stale state in search (F8)
+
+- Where: ProductsPage.tsx
+- Why: async state update misuse
+- Impact: lagging search results
+- Fix: use event value directly
+- Trade-offs: none
+
+### Issue: Array index as React key (F9)
+
+- Where: multiple components
+- Why: unstable keys
+- Impact: UI reconciliation bugs
+- Fix: use stable IDs
+- Trade-offs: none
+
+### Issue: Admin token in localStorage (F10)
+
+- Where: api.ts
+- Why: insecure storage
+- Impact: XSS credential theft
+- Fix: httpOnly cookies
+- Trade-offs: backend change required
+
+### Issue: Optimistic update before API confirmation (F11)
+
+- Where: AdminPage.tsx
+- Why: premature UI update
+- Impact: inconsistent UI state
+- Fix: update after success
+- Trade-offs: slower UI
+
+### Issue: Missing auth header on admin fetch (F12)
+
+- Where: api.ts
+- Why: missing header
+- Impact: auth breakage
+- Fix: add Authorization header
+- Trade-offs: none
+
+### Issue: Missing accessibility live region (F13)
+
+- Where: OrderDetailPage.tsx
+- Why: no aria-live
+- Impact: poor screen reader support
+- Fix: aria-live="polite"
+- Trade-offs: none
+
+### Issue: Invalid quantity input (F14)
+
+- Where: ProductDetailPage.tsx
+- Why: no validation
+- Impact: invalid orders
+- Fix: enforce min/max
+- Trade-offs: UX restriction
 
 ## Cross-cutting
 
-### Issue: <title>
+### Issue: No rate limiting on payment endpoint (C1)
 
-- Where:
-- Why:
-- Impact:
-- Fix:
-- Trade-offs:
+- Where: payments API
+- Why: no throttling
+- Impact: abuse / load spikes
+- Fix: rate limiting middleware
+- Trade-offs: may block legit bursts
+
+### Issue: Overly permissive CORS (C2)
+
+- Where: app.js
+- Why: origin="*" with credentials
+- Impact: invalid + insecure CORS
+- Fix: restrict to FRONTEND_ORIGIN
+- Trade-offs: env-specific config
