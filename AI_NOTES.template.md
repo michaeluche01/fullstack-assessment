@@ -75,5 +75,9 @@ What was wrong with it. How you found out. What you replaced it with.
   if a developer forgets the argument on a new route.
 - **Token comparison**: noted personally that === is timing-attack vulnerable
   and documented it in FINDINGS.md. AI did not flag this unprompted.
+- **Money arithmetic**: personally verified the Math.round(n * 100) / 100
+  rounding approach on a calculator for three cases before accepting it.
+  Confirmed that .toFixed(2) was not used because it returns a string, not a
+  number. Verified 49.95 × 2 = 99.90 and 49.95 × 3 = 149.85 exactly.
 
 Briefly explain why you did not trust AI for these.

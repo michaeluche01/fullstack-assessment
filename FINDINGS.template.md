@@ -131,6 +131,25 @@ Group by Backend / Frontend / Cross-cutting.
 - Trade-offs: None — parameterized queries are strictly safer and have no
   performance downside.
 
+
+### Issue: totalAmount trusted from client (B6)
+
+- Where: `src/services/ordersService.js` → `createOrder`
+- Why: The totalAmount field from the request body was passed directly to the
+  database via Number(totalAmount). The server already had all unit prices from
+  the database inside enrichedItems but ignored them for the stored total.
+- Impact: A client could send totalAmount: 0.01 for a $260 order and pay 1 cent.
+  Complete price integrity bypass — no concurrency or auth required to exploit.
+- Fix: Removed client-supplied totalAmount from the createOrder DB call entirely.
+  Server now computes the total from enrichedItems using unit prices fetched from
+  the database: sum of (unitPrice × quantity) for all items, rounded to 2 decimal
+  places using Math.round(n * 100) / 100 to avoid floating point drift.
+- Trade-offs: Client-supplied totalAmount is silently ignored rather than rejected
+  with a 422. A production system might validate and error if they don't match,
+  which helps detect buggy clients. For very large orders, floating point
+  accumulation across many additions could still drift slightly — production fix
+  is integer arithmetic (store prices in cents).
+
 ## Frontend
 
 ### Issue: <title>

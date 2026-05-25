@@ -78,11 +78,25 @@ async function createOrder({ customerId, items, totalAmount }) {
       }
     }
 
-    // createOrder already accepts a client as second arg — pass it through.
-    const order = await ordersRepository.createOrder(
-      { customerId, totalAmount: Number(totalAmount), items: enrichedItems },
-      client,
-    );
+// Compute total server-side from unit prices already fetched from DB.
+// Never trust the client-supplied totalAmount.
+// Math.round(n * 100) / 100 rounds to 2 decimal places without
+// floating point drift. Example: 3 × $89.50 = $268.50 exactly.
+const computedTotal = Math.round(
+  enrichedItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0,
+  ) * 100,
+) / 100;
+
+const order = await ordersRepository.createOrder(
+  {
+    customerId,
+    totalAmount: computedTotal,  // server-computed, not client-supplied
+    items: enrichedItems,
+  },
+  client,
+);
 
     return order;
   });
